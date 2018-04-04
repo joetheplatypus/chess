@@ -1,6 +1,46 @@
 <head>
 	<style>
+		/* The Modal (background) */
+		.modal {
+			display: none; /* Hidden by default */
+			position: fixed; /* Stay in place */
+			z-index: 1; /* Sit on top */
+			padding-top: 100px; /* Location of the box */
+			left: 0;
+			top: 0;
+			width: 100%; /* Full width */
+			height: 100%; /* Full height */
+			overflow: auto; /* Enable scroll if needed */
+			background-color: rgb(0,0,0); /* Fallback color */
+			background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+		}
 
+		/* Modal Content */
+		.modal-content {
+			background-color: #fefefe;
+			margin: auto;
+			padding: 20px;
+			border: 1px solid #888;
+			width: 60%;
+		}
+
+		/* The Close Button */
+		#modal-close {
+			color: #aaaaaa;
+			float: right;
+			font-size: 28px;
+			font-weight: bold;
+		}
+
+		#modal-close:hover,
+		#modal-close:focus {
+			color: #000;
+			text-decoration: none;
+			cursor: pointer;
+		}
+		.modal-button {
+			padding: 10px;
+		}
 	</style>
 </head>
 <body style="margin:0;padding:0px;" onload="SetFocus()">
@@ -12,18 +52,20 @@
 		</form>
 	</div>
 
+	<div id="gameDiv" style="position:absolute;display:none;width:100%;height:100%">
+		<div id="paths" style="position:absolute;z-index:3;"></div>
+		<div id="moves" style="position:absolute;z-index:2;"></div>
+		<div id="pieces" style="position:absolute;z-index:1;"></div>
+		<div id="upgrades" style="position:absolute;z-index:4;bottom:20;left:20;"></div>
+		<div id="modal" class="modal">
+			<div class="modal-content">
+			  <span id="modal-close">&times;</span>
+			  <p id="modal-text"></p>
+			</div>
+		</div>
+	</div>
 
-
-
-
-<div id="gameDiv" style="position:absolute;display:none;width:100%;height:100%">
-	<div id="paths" style="position:absolute;z-index:3;"></div>
-	<div id="moves" style="position:absolute;z-index:2;"></div>
-	<div id="pieces" style="position:absolute;z-index:1;"></div>
-	<div id="upgrades" style="position:absolute;z-index:4;bottom:20;left:20;"></div>
-</div>
-
-<button style="position:absolute;right:20;bottom:20;width:80;height:40" onclick="Player.ready()">READY</button>
+	<button style="position:absolute;right:20;bottom:20;width:80;height:40" onclick="Player.ready()">READY</button>
 
 
 <script src="https://cdn.socket.io/socket.io-1.4.5.js"></script>
@@ -31,7 +73,7 @@
 	//set cursor in username field (called onload)
 	function SetFocus () {
 		var input = document.getElementById("signDiv-username");
-		input.focus ();
+		input.focus();
 	}
 
 	//setup socket.io
@@ -50,6 +92,9 @@
 	var signDiv = document.getElementById("signDiv");
 	var signDivUsername = document.getElementById("signDiv-username");
 	var signDivJoin = document.getElementById("signDiv-join");
+	var modal = document.getElementById("modal");
+	var modalClose = document.getElementById("modal-close");
+	var modalText = document.getElementById("modal-text");
 
 	//signing in
 	signDivJoin.onclick = function () {
@@ -57,21 +102,58 @@
 		socket.emit('signIn', {username:signDivUsername.value});
 	}
 	
-	socket.on('signInResponse', function(data) {
-		if(data.success) {
-			inGame = true;
-			signDiv.style.display = 'none';
-			gameDiv.style.display = 'inline-block';
-		} else {
-			if(data.name) {
-				var box = document.getElementById("loginMessage");
-				box.innerHTML = "The username " + data.name + " is already taken";
-			} else {
-				var box = document.getElementById("loginMessage");
-				box.innerHTML = "The Game is already in progress";
+	//BOARD Object
+	var Board = {};
+	Board.reversed = false;
+	Board.height = screen.height-50;
+	Board.width = Board.height;
+	Board.draw = function() {
+		
+	}
+	
+	
+	Board.gui = {};
+	Board.gui.chooseUpgrade = function(piece,choices) {
+		var div = document.createElement("div")
+		for(var i=0;i<choices.length;i++) {
+			var button = document.createElement('button');
+			button.innerHTML = choices[i];
+			button.id = choices[i];
+			button.class = "modal-button";
+			button.onclick = function(event) {
+				modal.style.display = "none";
+				socket.emit('upgradePiece',{piece:piece,choice:this.id})
 			}
+			div.appendChild(button);
 		}
-	});
+		Board.gui.showModal(div);
+	}
+	Board.gui.checkMate = function() {
+		var text = document.createTextNode("Checkmate ... You lose!");
+		Board.gui.showModal(text);
+	}
+	Board.gui.showModal = function(node) { //as in text node
+		modalText.innerHTML = "";
+		modalText.appendChild(node);
+		modal.style.display = "block";
+	}
+	Board.gui.playerLeave = function(player) {
+		var text = document.createTextNode("Player " + player.name + " has left the game... You Win");
+		Board.gui.showModal(text);
+	}
+	modalClose.onclick = function() {
+		modal.style.display = "none";
+	}
+	//helper functions
+	Board.util = {};
+	Board.util.coordsToPx = function(coords) {
+		//Add GUI fixes here
+		return {x:coords.x*50,y:coords.y*50};
+	}
+	Board.util.pxToCoords = function(px) {
+		return {x:Math.trunc(px.x/50),y:Math.trunc(px.y/50)};
+	}
+	
 	
 	//CLASSES
 	class Player {
@@ -131,8 +213,9 @@
 			box.style.width = 50;
 			box.style.height = 50;
 			box.style.position = "absolute";
-			box.style.left = this.x*50;
-			box.style.top = this.y*50;
+			var pos = Board.util.coordsToPx({x:this.x,y:this.y});
+			box.style.left = pos.x;
+			box.style.top = pos.y;
 			box.id = this.id;
 			
 			var img = document.createElement('img');
@@ -178,11 +261,17 @@
 				var box = document.createElement('div');
 				box.style.width = 50;
 				box.style.height = 50;
-				box.style.backgroundColor = "lightgrey";
+				if(moves[i].legal) {
+					box.style.backgroundColor = "lightgrey";
+				} else {
+					box.style.backgroundColor = "red";
+				}
+				
 				box.style.opacity = 0.2;
 				box.style.position = "absolute";
-				box.style.left = moves[i].x*50;
-				box.style.top = moves[i].y*50;
+				var pos = Board.util.coordsToPx({x:moves[i].x,y:moves[i].y});
+				box.style.left = pos.x;
+				box.style.top = pos.y;
 				
 				gameDivMoves.appendChild(box);
 			}
@@ -196,13 +285,13 @@
 				box.style.backgroundColor = "grey";
 				box.style.opacity = 0.4;
 				box.style.position = "absolute";
-				box.style.left = path[i].x*50;
-				box.style.top = path[i].y*50;
+				var pos = Board.util.coordsToPx({x:path[i].x,y:path[i].y});
+				box.style.left = pos.x;
+				box.style.top = pos.y;
 				
 				box.onclick = function(event){
-					var x = Math.trunc(event.clientX/50);
-					var y = Math.trunc(event.clientY/50);
-					Piece.move(selectedPiece,x,y);
+					var coords = Board.util.pxToCoords({x:event.clientX,y:event.clientY});
+					Piece.move(selectedPiece,coords.x,coords.y);
 					gameDivPaths.innerHTML = "";
 					gameDivMoves.innerHTML = "";
 				}
@@ -215,20 +304,8 @@
 			selectedPiece = {}
 		}
 		
-		
 	}
-	Piece.chooseUpgrade = function(piece,choices) {
-		for(var i=0;i<choices.length;i++) {
-			var button = document.createElement('button');
-			button.innerHTML = choices[i];
-			button.id = choices[i];
-			button.onclick = function(event) {
-				gameDivUpgrades.innerHTML = "";
-				socket.emit('upgradePiece',{piece:piece,choice:this.id})
-			}
-			gameDivUpgrades.appendChild(button);
-		}
-	}
+
 	Piece.move = function(piece,x,y) {
 		Piece.fromID(piece.id).move(x,y)
 	}
@@ -249,18 +326,23 @@
 	}
 	Piece.list = [];
 
-	
-	//GAME FUNCTIONS
-	
-	
-	//MISC FUNCTIONS
-	
-	
 	//---SOCKET IO PACKS---
-	//-CONSTANTLY RECEIVED PACKS-
-	//init
-	
-	//update
+	socket.on('signInResponse', function(data) {
+		if(data.success) {
+			inGame = true;
+			signDiv.style.display = 'none';
+			gameDiv.style.display = 'inline-block';
+		} else {
+			if(data.name) {
+				var box = document.getElementById("loginMessage");
+				box.innerHTML = "The username " + data.name + " is already taken";
+			} else {
+				var box = document.getElementById("loginMessage");
+				box.innerHTML = "The Game is already in progress";
+			}
+		}
+	});
+
 	socket.on('pieces',function(pieces) {
 		for(var i=0;i<pieces.length;i++) {
 			if(Piece.exists(pieces[i].id)) {
@@ -304,8 +386,6 @@
 		}
 	});
 	
-	
-	//-EVENT PACKS-
 	socket.on('path', function(data) {
 		Piece.fromID(data.piece.id).drawPath(data.path)
 	});
@@ -315,14 +395,24 @@
 	});
 
 	socket.on('chooseUpgradePiece', function(data) {
-		Piece.chooseUpgrade(data.piece,data.choices);
+		Board.gui.chooseUpgrade(data.piece,data.choices);
 	});
 	
 	socket.on('selfId', function(data) {
 		selfId = data;
 	});
+
+	socket.on('inCheckMate', function() {
+		Board.checkMate();
+	});
+
+	socket.on('playerLeave', function(id) {
+		var player = Player.fromID(id);
+		Board.gui.playerLeave(player);
+	});
 	
 	
+	//UPDATE FUNCTIONS
 	document.onmousemove = function(event) {
 		var x = Math.trunc(event.clientX/50);
 		var y = Math.trunc(event.clientY/50);
@@ -330,10 +420,6 @@
 			selectedPiece.getPath(x,y)
 		}
 	}
-	
-	
-	
-	
-	
+		
 </script>
 </body>

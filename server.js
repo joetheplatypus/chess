@@ -14,6 +14,12 @@ Player.sendUpdate = function() {
 		socket.emit('players', Player.getObjArray());
 	}
 }
+Player.leaveUpdate = function(player) {
+	for(var i in SOCKET_LIST) {
+		var socket = SOCKET_LIST[i];
+		socket.emit('playerLeave', player);
+	}
+}
 Piece.sendUpdate = function() {
 	for(var i in SOCKET_LIST) {
 		var socket = SOCKET_LIST[i];
@@ -48,8 +54,6 @@ console.log("server started");
 
 var SOCKET_LIST = {};
 
-GameInProgress = false;
-
 var io = require('socket.io')(serv,{});
 io.sockets.on('connection', function(socket){
 	socket.id = Math.random();
@@ -58,7 +62,7 @@ io.sockets.on('connection', function(socket){
 	
 	socket.on('signIn', function(data){
 	
-		if(GameInProgress || Player.list.length >= 2) {
+		if(GameBoard.gameInProgress || Player.list.length >= 2) {
 			socket.emit('signInResponse', {success:false});
 			return;
 		}
@@ -78,8 +82,13 @@ io.sockets.on('connection', function(socket){
 	});
 	
 	socket.on('disconnect', function(){
+		
+		if(GameBoard.gameInProgress && Player.fromSocket(socket)) {
+			Player.leaveUpdate(Player.fromSocket(socket).id);
+		}
 		delete SOCKET_LIST[socket.id];
 		Player.onDisconnect(socket);	
+		
 	});
 	
 });

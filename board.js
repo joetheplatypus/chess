@@ -13,8 +13,9 @@ GameBoard.layout = [["BRook","BKnight","BBishop","BQueen","BKing","BBishop","BKn
 	["WPawn","WPawn","WPawn","WPawn","WPawn","WPawn","WPawn","WPawn"],
 	["WRook","WKnight","WBishop","WQueen","WKing","WBishop","WKnight","WRook"]];
 
-GameBoard.height = GameBoard.layout.length;
-GameBoard.length = GameBoard.layout[0].length;
+GameBoard.height = GameBoard.layout.length-1;
+GameBoard.length = GameBoard.layout[0].length-1;
+GameBoard.gameInProgress = false;
 GameBoard.swapTurn = function () {
 	for(var i=0;i<Player.list.length;i++) {
 		Player.list[i].turn = !Player.list[i].turn
@@ -41,6 +42,7 @@ GameBoard.init = function() {
 			}
 		}
 	}
+	GameBoard.gameInProgress = true;
 }
 GameBoard.positionOccupied = function(x,y) {
 	for(var i=0;i<Piece.list.length;i++) {
@@ -51,12 +53,16 @@ GameBoard.positionOccupied = function(x,y) {
 	return false;
 }
 //checks for check and checkmate
-GameBoard.calcCheck = function() {
+GameBoard.calcCheck = function(piecemoved) {
 	var kings = Piece.getKings();
 	for(var i=0;i<kings.length;i++) {
+		var player = Player.fromColour(kings[i].colour);
 		if(GameBoard.kingInCheck(kings[i])) {
-			Player.fromColour(kings[i].colour).inCheck = true;
-			console.log("player " + Player.fromColour(kings[i].colour).name + " in check")
+			player.inCheck = true;
+			console.log("player " + player.name + " in check");
+			if(GameBoard.inCheckMate(player,piecemoved)) {
+				Player.inCheckMate(player);
+			}
 		}
 	}
 }
@@ -120,15 +126,25 @@ GameBoard.doesEvadeCheck = function(player,piece,x,y) {
 
 	return result;
 }
-GameBoard.kingSelfCheck = function(king,x,y) {
+GameBoard.kingSelfCheck = function(piece,x,y) { //not working
 
 	var result = false;
 
-	const tempx = king.x
-	const tempy = king.y
+	var kings = Piece.getKings();
+	var king = {};
+	for(var i=0;i<kings.length;i++) {
+		if(kings[i].colour == piece.colour) {
+			king = kings[i];
+		}
+	}
+
+	const tempx = piece.x
+	const tempy = piece.y
 
 	var occtempx;
 	var occtempy;
+
+
 
 	var occPiece = {}
 	if(GameBoard.positionOccupied(x,y)) {
@@ -139,8 +155,8 @@ GameBoard.kingSelfCheck = function(king,x,y) {
 		occPiece.y = 100;		
 	}
 
-	king.x = x;
-	king.y = y;
+	piece.x = x;
+	piece.y = y;
 
 	if(GameBoard.kingInCheck(king)) {
 		result =  true;
@@ -148,13 +164,41 @@ GameBoard.kingSelfCheck = function(king,x,y) {
 		result =  false;
 	}
 
-	king.x = tempx;
-	king.y = tempy;
+	piece.x = tempx;
+	piece.y = tempy;
 	if(occPiece != {}) {
 		occPiece.x = occtempx;
 		occPiece.y = occtempy;
 	}
 
 	return result;
+}
+GameBoard.inCheckMate = function(player,piecemoved) {
+
+	//check for possible move
+	for(var i=0;i<Piece.list.length;i++) {
+		var piece = Piece.list[i];
+		if(piece.colour == player.colour) {
+			var moves = piece.getAllValidMoves();
+			for(var j=0;j<moves.length;j++) {
+				if(GameBoard.doesEvadeCheck(player,piece,moves[j].x,moves[j].y)) {
+					return false;
+				}
+			}
+		}	
+	}
+
+	return true;
+}
+GameBoard.filterLegalMoves = function (piece,_moves) {
+	var moves = [];
+	for(var i=0;i<_moves.length;i++) {
+		if(GameBoard.kingSelfCheck(piece,_moves[i].x,_moves[i].y)) {
+			moves.push({x:_moves[i].x,y:_moves[i].y,legal:false});
+		} else {
+			moves.push({x:_moves[i].x,y:_moves[i].y,legal:true});
+		}
+	}
+	return moves;
 }
 module.exports = GameBoard;

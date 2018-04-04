@@ -74,7 +74,8 @@ Player.onConnect = function(socket,username,ip) {
 	socket.on('getAllValidMoves', function(pieceid){
 		var piece = Piece.fromID(pieceid);
 		var moves = piece.getAllValidMoves();
-		socket.emit('allValidMoves', {piece:piece,moves:moves});	
+		var filteredMoves = GameBoard.filterLegalMoves(piece,moves);
+		socket.emit('allValidMoves', {piece:piece,moves:filteredMoves});	
 		
 	});
 		
@@ -90,7 +91,9 @@ Player.onConnect = function(socket,username,ip) {
 	});
 	
 	socket.on('movePiece', function(data){
-		if(Player.fromSocketID(socket.id).colour == data.piece.colour && data.x == Piece.fromID(data.piece.id).x && data.y == Piece.fromID(data.piece.id).y) {
+
+		var piece = Piece.fromID(data.piece.id);
+		if(Player.fromSocketID(socket.id).colour == data.piece.colour && data.x == piece.x && data.y == piece.y) {
 			console.log("no same place");
 			return;
 		}
@@ -100,31 +103,33 @@ Player.onConnect = function(socket,username,ip) {
 		if(Player.fromSocketID(socket.id).colour == data.piece.colour) {
 
 			if(Player.fromSocketID(socket.id).inCheck) {
-				if(!GameBoard.doesEvadeCheck(Player.fromSocketID(socket.id),Piece.fromID(data.piece.id),data.x,data.y)) {
+				if(!GameBoard.doesEvadeCheck(Player.fromSocketID(socket.id),piece,data.x,data.y)) {
 					return;
 				} else {
 					Player.fromSocketID(socket.id).inCheck = false;
 				}
 			}
 
+			if(GameBoard.kingSelfCheck(piece,data.x,data.y)) {
+				return;
+			}
+
 			if(GameBoard.positionOccupied(data.x,data.y) && GameBoard.positionOccupied(data.x,data.y).colour != Player.fromSocketID(socket.id).colour) {
-				if(data.piece.type == "King" && GameBoard.kingSelfCheck(Piece.fromID(data.piece.id),data.x,data.y)) {
-					return;
-				}
+				
 				Player.takePiece(GameBoard.positionOccupied(data.x,data.y));
 			}
 
-			Piece.fromID(data.piece.id).move(data.x,data.y);
+			piece.move(data.x,data.y);
 
 			if(data.piece.type == "Pawn"){
 				if(data.piece.colour == "White" && data.y == 0) {
-					Piece.fromID(data.piece.id).requestUpgrade(socket);
+					piece.requestUpgrade(socket);
 				} else if(data.piece.colour == "Black" && data.y == 7) {
-					Piece.fromID(data.piece.id).requestUpgrade(socket);
+					piece.requestUpgrade(socket);
 				}
 			}
 
-			GameBoard.calcCheck();
+			GameBoard.calcCheck(piece);
 		}
 
 	});
@@ -173,6 +178,11 @@ Player.getObjArray = function() {
 		})
 	}
 	return arr;
+}
+Player.inCheckMate = function(player) {
+	var socket = player.socket;
+	console.log(socket.id);
+	socket.emit('inCheckMate', {});
 }
 Player.list = [];
 
