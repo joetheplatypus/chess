@@ -4,8 +4,6 @@ Player = require('./player');
 ClassConstructor = require('./classes/constructor');
 
 GameBoard = {};
-GameBoard.height = 7;
-GameBoard.length = 7;
 GameBoard.layout = [["BRook","BKnight","BBishop","BKing","BQueen","BBishop","BKnight","BRook"],
 	["BPawn","BPawn","BPawn","BPawn","BPawn","BPawn","BPawn","BPawn"],
 	["","","","","","","",""],
@@ -14,6 +12,9 @@ GameBoard.layout = [["BRook","BKnight","BBishop","BKing","BQueen","BBishop","BKn
 	["","","","","","","",""],
 	["WPawn","WPawn","WPawn","WPawn","WPawn","WPawn","WPawn","WPawn"],
 	["WRook","WKnight","WBishop","WQueen","WKing","WBishop","WKnight","WRook"]];
+
+GameBoard.height = GameBoard.layout.length;
+GameBoard.length = GameBoard.layout[0].length;
 GameBoard.swapTurn = function () {
 	for(var i=0;i<Player.list.length;i++) {
 		Player.list[i].turn = !Player.list[i].turn
