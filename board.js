@@ -4,7 +4,7 @@ Player = require('./player');
 ClassConstructor = require('./classes/constructor');
 
 GameBoard = {};
-GameBoard.layout = [["BRook","BKnight","BBishop","BKing","BQueen","BBishop","BKnight","BRook"],
+GameBoard.layout = [["BRook","BKnight","BBishop","BQueen","BKing","BBishop","BKnight","BRook"],
 	["BPawn","BPawn","BPawn","BPawn","BPawn","BPawn","BPawn","BPawn"],
 	["","","","","","","",""],
 	["","","","","","","",""],
