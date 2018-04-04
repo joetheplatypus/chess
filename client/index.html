@@ -1,0 +1,339 @@
+<head>
+	<style>
+
+	</style>
+</head>
+<body style="margin:0;padding:0px;" onload="SetFocus()">
+	<div id="signDiv">
+		<form action="javascript:void(0);">
+		<p>Username: </p><input id="signDiv-username" type="text" autocomplete="off"></input>
+		<p id="loginMessage" style="font-size:15px;color:red;"></p>
+		<button id="signDiv-join">JOIN</button>
+		</form>
+	</div>
+
+
+
+
+
+<div id="gameDiv" style="position:absolute;display:none;width:100%;height:100%">
+	<div id="paths" style="position:absolute;z-index:3;"></div>
+	<div id="moves" style="position:absolute;z-index:2;"></div>
+	<div id="pieces" style="position:absolute;z-index:1;"></div>
+	<div id="upgrades" style="position:absolute;z-index:4;bottom:20;left:20;"></div>
+</div>
+
+<button style="position:absolute;right:20;bottom:20;width:80;height:40" onclick="Player.ready()">READY</button>
+
+
+<script src="https://cdn.socket.io/socket.io-1.4.5.js"></script>
+<script> 
+	//set cursor in username field (called onload)
+	function SetFocus () {
+		var input = document.getElementById("signDiv-username");
+		input.focus ();
+	}
+
+	//setup socket.io
+	var socket =  io();
+	
+	//global vars
+	var selectedPiece = {};
+	var selfId;
+	
+	//DOM
+	var gameDiv = document.getElementById("gameDiv");
+	var gameDivPaths = document.getElementById("paths");
+	var gameDivMoves = document.getElementById("moves");
+	var gameDivPieces = document.getElementById("pieces");
+	var gameDivUpgrades = document.getElementById("upgrades");
+	var signDiv = document.getElementById("signDiv");
+	var signDivUsername = document.getElementById("signDiv-username");
+	var signDivJoin = document.getElementById("signDiv-join");
+
+	//signing in
+	signDivJoin.onclick = function () {
+		username = signDivUsername.value;
+		socket.emit('signIn', {username:signDivUsername.value});
+	}
+	
+	socket.on('signInResponse', function(data) {
+		if(data.success) {
+			inGame = true;
+			signDiv.style.display = 'none';
+			gameDiv.style.display = 'inline-block';
+		} else {
+			if(data.name) {
+				var box = document.getElementById("loginMessage");
+				box.innerHTML = "The username " + data.name + " is already taken";
+			} else {
+				var box = document.getElementById("loginMessage");
+				box.innerHTML = "The Game is already in progress";
+			}
+		}
+	});
+	
+	//CLASSES
+	class Player {
+		constructor(param) {
+			this.name = param.name;
+			this.id = param.id;
+			this.colour = param.colour;
+			if(this.colour == "White") {
+				this.turn = true;
+			} else {
+				this.turn = false;
+			}
+			Player.list.push(this);
+		}
+	}
+	Player.ready = function() {
+		socket.emit('playerReady', {});
+	}
+	Player.swapTurns = function() {
+		for(var i=0;i<Player.list.length;i++) {
+			Player.list[i].turn = !Player.list[i].turn
+		}
+	}
+	Player.exists = function(id) {
+		for(var i=0;i<Player.list.length;i++) {
+			if(id == Player.list[i].id) {
+				return true;
+			}
+		}
+		return false;
+	}
+	Player.fromID = function (id) {
+		for(var i=0;i<Player.list.length;i++) {
+			if(id == Player.list[i].id) {
+				return Player.list[i];
+			}
+		}
+	}
+	Player.list = [];
+	
+	class Piece {
+	
+		constructor(param) {
+			this.id = param.id;
+			this.x = param.x;
+			this.y = param.y;
+			this.colour = param.colour;
+			this.type = param.type;
+			this.draw()
+			Piece.list.push(this);
+		}
+		draw() {
+			if(document.getElementById(this.id)) {
+				gameDivPieces.removeChild(document.getElementById(this.id))
+			}
+			var box = document.createElement('div');
+			box.style.width = 50;
+			box.style.height = 50;
+			box.style.position = "absolute";
+			box.style.left = this.x*50;
+			box.style.top = this.y*50;
+			box.id = this.id;
+			
+			var img = document.createElement('img');
+			img.style.width = "100%";
+			img.style.height = "100%";
+			img.src = "/client/img/" + this.colour + this.type + ".png";
+			box.appendChild(img);
+			
+			if(this.colour == Player.fromID(selfId).colour) {
+				box.onclick = function(){
+					gameDivPaths.innerHTML = "";
+					if(Player.fromID(selfId).turn) {
+						selectedPiece = Piece.fromID(this.id);
+						selectedPiece.getAllValidMoves();
+					} else {
+						console.log("not your turn");
+					}
+					
+				};
+			}
+			
+			
+			gameDivPieces.appendChild(box);
+		}
+		remove() {
+			if(document.getElementById(this.id)) {
+				gameDivPieces.removeChild(document.getElementById(this.id))
+			}
+			var index = Piece.list.indexOf(this);
+			if (index !== -1) {
+				Piece.list.splice(index, 1);
+			}
+		}
+		getAllValidMoves() {
+			socket.emit('getAllValidMoves', this.id);
+		}
+		getPath(x,y) {
+			socket.emit('getPath', {piece:this,x:x,y:y});
+		}
+		drawAvailableMoves (moves) {
+			gameDivMoves.innerHTML = "";
+			for(var i=0;i<moves.length;i++) {
+				var box = document.createElement('div');
+				box.style.width = 50;
+				box.style.height = 50;
+				box.style.backgroundColor = "lightgrey";
+				box.style.opacity = 0.2;
+				box.style.position = "absolute";
+				box.style.left = moves[i].x*50;
+				box.style.top = moves[i].y*50;
+				
+				gameDivMoves.appendChild(box);
+			}
+		}
+		drawPath(path) {
+			gameDivPaths.innerHTML = "";
+			for(var i=0;i<path.length;i++) {
+				var box = document.createElement('div');
+				box.style.width = 50;
+				box.style.height = 50;
+				box.style.backgroundColor = "grey";
+				box.style.opacity = 0.4;
+				box.style.position = "absolute";
+				box.style.left = path[i].x*50;
+				box.style.top = path[i].y*50;
+				
+				box.onclick = function(event){
+					var x = Math.trunc(event.clientX/50);
+					var y = Math.trunc(event.clientY/50);
+					Piece.move(selectedPiece,x,y);
+					gameDivPaths.innerHTML = "";
+					gameDivMoves.innerHTML = "";
+				}
+				
+				gameDivPaths.appendChild(box);
+			}
+		}
+		move(x,y) {
+			socket.emit('movePiece', {piece:this,x:x,y:y});
+			selectedPiece = {}
+		}
+		
+		
+	}
+	Piece.chooseUpgrade = function(piece,choices) {
+		for(var i=0;i<choices.length;i++) {
+			var button = document.createElement('button');
+			button.innerHTML = choices[i];
+			button.id = choices[i];
+			button.onclick = function(event) {
+				gameDivUpgrades.innerHTML = "";
+				socket.emit('upgradePiece',{piece:piece,choice:this.id})
+			}
+			gameDivUpgrades.appendChild(button);
+		}
+	}
+	Piece.move = function(piece,x,y) {
+		Piece.fromID(piece.id).move(x,y)
+	}
+	Piece.exists = function(id) {
+		for(var i=0;i<Piece.list.length;i++) {
+			if(id == Piece.list[i].id) {
+				return true;
+			}
+		}
+		return false;
+	}
+	Piece.fromID = function (id) {
+		for(var i=0;i<Piece.list.length;i++) {
+			if(id == Piece.list[i].id) {
+				return Piece.list[i];
+			}
+		}
+	}
+	Piece.list = [];
+
+	
+	//GAME FUNCTIONS
+	
+	
+	//MISC FUNCTIONS
+	
+	
+	//---SOCKET IO PACKS---
+	//-CONSTANTLY RECEIVED PACKS-
+	//init
+	
+	//update
+	socket.on('pieces',function(pieces) {
+		for(var i=0;i<pieces.length;i++) {
+			if(Piece.exists(pieces[i].id)) {
+				var piece = Piece.fromID(pieces[i].id);
+				piece.x = pieces[i].x;
+				piece.y = pieces[i].y;
+				piece.draw();
+				
+			} else {
+				new Piece({
+					id:pieces[i].id,
+					x:pieces[i].x,
+					y:pieces[i].y,
+					colour:pieces[i].colour,
+					type:pieces[i].type,
+				});
+			}
+		}
+	});
+
+	socket.on('turnUpdate', function() {
+		Player.swapTurns();
+	});
+	
+	socket.on('takePiece',function(piece) {
+		if(Piece.exists(piece.id)) {
+			Piece.fromID(piece.id).remove();
+		}
+
+	});
+	
+	socket.on('players',function(players) {
+		for(var i=0;i<players.length;i++) {
+			if(!Player.exists(players[i].id)) {
+				new Player({
+					id:players[i].id,
+					name:players[i].name,
+					colour:players[i].colour,
+				});
+			}			
+		}
+	});
+	
+	
+	//-EVENT PACKS-
+	socket.on('path', function(data) {
+		Piece.fromID(data.piece.id).drawPath(data.path)
+	});
+	
+	socket.on('allValidMoves', function(data) {
+		Piece.fromID(data.piece.id).drawAvailableMoves(data.moves)
+	});
+
+	socket.on('chooseUpgradePiece', function(data) {
+		Piece.chooseUpgrade(data.piece,data.choices);
+	});
+	
+	socket.on('selfId', function(data) {
+		selfId = data;
+	});
+	
+	
+	document.onmousemove = function(event) {
+		var x = Math.trunc(event.clientX/50);
+		var y = Math.trunc(event.clientY/50);
+		if(selectedPiece.id && Player.fromID(selfId).colour == selectedPiece.colour) {
+			selectedPiece.getPath(x,y)
+		}
+	}
+	
+	
+	
+	
+	
+</script>
+</body>
