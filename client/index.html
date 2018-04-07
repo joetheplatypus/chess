@@ -11,7 +11,7 @@
 			width: 100%; /* Full width */
 			height: 100%; /* Full height */
 			overflow: auto; /* Enable scroll if needed */
-			background-color: rgb(0,0,0); /* Fallback color */
+			background-color: rgb(0, 0, 0); /* Fallback color */
 			background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
 		}
 
@@ -47,17 +47,18 @@
 	<div id="signDiv">
 		<form action="javascript:void(0);">
 		<p>Username: </p><input id="signDiv-username" type="text" autocomplete="off"></input>
-		<p id="loginMessage" style="font-size:15px;color:red;"></p>
+		<p id="loginMessage" style="font-size:15px;color:#ff0000;"></p>
 		<button id="signDiv-join">JOIN</button>
 		</form>
 	</div>
 
 	<div id="gameDiv" style="position:absolute;display:none;width:100%;height:100%">
-		<div id="paths" style="position:absolute;z-index:3;"></div>
-		<div id="moves" style="position:absolute;z-index:2;"></div>
-		<div id="pieces" style="position:absolute;z-index:1;"></div>
+		<div id="board"  style="position:absolute;z-index:1;"></div>
+		<div id="paths" style="position:absolute;z-index:4;"></div>
+		<div id="moves" style="position:absolute;z-index:3;"></div>
+		<div id="pieces" style="position:absolute;z-index:2;"></div>
 		<div id="upgrades" style="position:absolute;z-index:4;bottom:20;left:20;"></div>
-		<div id="modal" class="modal">
+		<div id="modal" class="modal" style="z-index:20;">
 			<div class="modal-content">
 			  <span id="modal-close">&times;</span>
 			  <p id="modal-text"></p>
@@ -85,6 +86,7 @@
 	
 	//DOM
 	var gameDiv = document.getElementById("gameDiv");
+	var gameDivBoard = document.getElementById("board");
 	var gameDivPaths = document.getElementById("paths");
 	var gameDivMoves = document.getElementById("moves");
 	var gameDivPieces = document.getElementById("pieces");
@@ -104,13 +106,38 @@
 	
 	//BOARD Object
 	var Board = {};
+	Board.DOM = gameDivBoard;
 	Board.reversed = false;
-	Board.height = screen.height-50;
+	Board.height = window.innerHeight-50;
 	Board.width = Board.height;
+	Board.top = 25
+	Board.left = window.innerWidth/2 - Board.width/2
 	Board.draw = function() {
-		
+		Board.DOM.style.width = Board.width;
+		Board.DOM.style.height = Board.height;
+		Board.DOM.style.top = Board.top;
+		Board.DOM.style.left = Board.left;
+
+		var ticker = false;
+		for(var i=0;i<8;i++) {
+			for(var j=0;j<8;j++) {
+				var div = document.createElement("div");
+				div.style.width = Board.width/8;
+				div.style.height = Board.height/8;
+				div.style.position = "absolute"
+				div.style.top = i*Board.height/8;
+				div.style.left = j*Board.width/8;
+				if(ticker) {
+					div.style.backgroundColor = "lightgrey";
+				} else {
+					div.style.backgroundColor = "white";
+				}
+				ticker = !ticker;
+				Board.DOM.appendChild(div);
+			}
+			ticker = !ticker;
+		}
 	}
-	
 	
 	Board.gui = {};
 	Board.gui.chooseUpgrade = function(piece,choices) {
@@ -144,14 +171,17 @@
 	modalClose.onclick = function() {
 		modal.style.display = "none";
 	}
-	//helper functions
+
 	Board.util = {};
 	Board.util.coordsToPx = function(coords) {
-		//Add GUI fixes here
-		return {x:coords.x*50,y:coords.y*50};
+		var rWidth = Board.width/8;
+		var rHeight = Board.height/8;
+		return {x:Board.left + coords.x*rWidth,y:Board.top + coords.y*rHeight};
 	}
 	Board.util.pxToCoords = function(px) {
-		return {x:Math.trunc(px.x/50),y:Math.trunc(px.y/50)};
+		var rWidth = Board.width/8;
+		var rHeight = Board.height/8;
+		return {x:Math.trunc((px.x-Board.left)/rWidth),y:Math.trunc((px.y-Board.top)/rHeight)};
 	}
 	
 	
@@ -210,8 +240,8 @@
 				gameDivPieces.removeChild(document.getElementById(this.id))
 			}
 			var box = document.createElement('div');
-			box.style.width = 50;
-			box.style.height = 50;
+			box.style.width = Board.width/8;
+			box.style.height = Board.height/8;
 			box.style.position = "absolute";
 			var pos = Board.util.coordsToPx({x:this.x,y:this.y});
 			box.style.left = pos.x;
@@ -226,6 +256,7 @@
 			
 			if(this.colour == Player.fromID(selfId).colour) {
 				box.onclick = function(){
+					console.log("selcted")
 					gameDivPaths.innerHTML = "";
 					if(Player.fromID(selfId).turn) {
 						selectedPiece = Piece.fromID(this.id);
@@ -259,15 +290,16 @@
 			gameDivMoves.innerHTML = "";
 			for(var i=0;i<moves.length;i++) {
 				var box = document.createElement('div');
-				box.style.width = 50;
-				box.style.height = 50;
+				box.style.width = Board.width/8;
+				box.style.height = Board.height/8;
 				if(moves[i].legal) {
-					box.style.backgroundColor = "lightgrey";
+					box.style.backgroundColor = "#55fd96";
+
 				} else {
-					box.style.backgroundColor = "red";
+					box.style.backgroundColor = "#ff5e5e";
 				}
 				
-				box.style.opacity = 0.2;
+				box.style.opacity = 0.7;
 				box.style.position = "absolute";
 				var pos = Board.util.coordsToPx({x:moves[i].x,y:moves[i].y});
 				box.style.left = pos.x;
@@ -276,13 +308,17 @@
 				gameDivMoves.appendChild(box);
 			}
 		}
-		drawPath(path) {
+		drawPath(path,legal) {
 			gameDivPaths.innerHTML = "";
 			for(var i=0;i<path.length;i++) {
 				var box = document.createElement('div');
-				box.style.width = 50;
-				box.style.height = 50;
-				box.style.backgroundColor = "grey";
+				box.style.width = Board.width/8;
+				box.style.height = Board.height/8;
+				if(legal) {
+					box.style.backgroundColor = "lightblue";
+				} else {
+					box.style.backgroundColor = "#ff5e5e";
+				}
 				box.style.opacity = 0.4;
 				box.style.position = "absolute";
 				var pos = Board.util.coordsToPx({x:path[i].x,y:path[i].y});
@@ -387,7 +423,7 @@
 	});
 	
 	socket.on('path', function(data) {
-		Piece.fromID(data.piece.id).drawPath(data.path)
+		Piece.fromID(data.piece.id).drawPath(data.path,data.legal)
 	});
 	
 	socket.on('allValidMoves', function(data) {
@@ -414,12 +450,13 @@
 	
 	//UPDATE FUNCTIONS
 	document.onmousemove = function(event) {
-		var x = Math.trunc(event.clientX/50);
-		var y = Math.trunc(event.clientY/50);
+		var coords = Board.util.pxToCoords({x:event.clientX,y:event.clientY});
 		if(selectedPiece.id && Player.fromID(selfId).colour == selectedPiece.colour) {
-			selectedPiece.getPath(x,y)
+			selectedPiece.getPath(coords.x,coords.y)
 		}
 	}
+
+	Board.draw();
 		
 </script>
 </body>

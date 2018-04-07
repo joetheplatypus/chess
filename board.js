@@ -201,4 +201,11 @@ GameBoard.filterLegalMoves = function (piece,_moves) {
 	}
 	return moves;
 }
+GameBoard.isLegalMove = function(piece,x,y) {
+	if(GameBoard.kingSelfCheck(piece,x,y)) {
+		return false;
+	} else {
+		return true;
+	}
+}
 module.exports = GameBoard;

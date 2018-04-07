@@ -84,7 +84,8 @@ Player.onConnect = function(socket,username,ip) {
 		if(piece.isValidMove(piece.x,piece.y,data.x,data.y)) {
 			var path = piece.getPath(piece.x,piece.y,data.x,data.y)
 			if(piece.isClearPath(path,data.x,data.y)) {
-				socket.emit('path', {piece:piece,path:path});	
+				var legal = GameBoard.isLegalMove(piece,data.x,data.y);
+				socket.emit('path', {piece:piece,path:path,legal:legal});	
 			} 
 			
 		}
